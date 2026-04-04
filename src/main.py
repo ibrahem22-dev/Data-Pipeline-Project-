@@ -1,3 +1,4 @@
+import sys
 from extract import fetch_all_cities
 from load import save_to_db, save_to_csv
 from transform import process_data, print_summary
@@ -15,9 +16,8 @@ def main():
         print("  3. Add to .env file: OPENWEATHER_API_KEY='YOUR_API_KEY_HERE'")
         return
 
-    db_ready = init_database()
-    if not db_ready:
-        print("  [WARNING] Database unavailable — saving to CSV only")
+    if not init_database():
+        print("  [ERROR] Database initialization failed — saving to CSV only")
 
     records = fetch_all_cities(CITIES)
 
@@ -26,14 +26,19 @@ def main():
         return
 
     df = process_data(records)
-
-    if db_ready:
-        save_to_db(df)
-
+    save_to_db(df)
     save_to_csv(df)
-
     print_summary(df)
 
 
 if __name__ == "__main__":
-    main()
+
+    if "--schedule" in sys.argv:
+        from scheduler import start_scheduler
+        hours = 6
+        if "--hours" in sys.argv:
+            idx = sys.argv.index("--hours")
+            hours = int(sys.argv[idx + 1])
+        start_scheduler(interval_hours=hours)
+    else:
+        main()
