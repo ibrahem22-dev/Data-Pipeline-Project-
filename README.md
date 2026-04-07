@@ -1,6 +1,6 @@
 # Weather Data Pipeline
 
-A full-stack **ETL (Extract, Transform, Load) data pipeline** that fetches real-time weather data for 5 Israeli cities from the OpenWeatherMap API, processes it with pandas, stores it in a PostgreSQL database, and exposes it via a FastAPI REST API.
+A full-stack **ETL (Extract, Transform, Load) data pipeline** that fetches real-time weather data for 5 Israeli cities from the OpenWeatherMap API, processes it with pandas, stores it in a PostgreSQL database, and exposes it via a FastAPI REST API and an interactive Streamlit dashboard.
 
 Built as a portfolio project to demonstrate end-to-end data engineering skills.
 
@@ -12,14 +12,13 @@ Built as a portfolio project to demonstrate end-to-end data engineering skills.
 - **Transform:** Processes raw data with pandas, adds calculated fields (`temp_diff`, `temp_category`)
 - **Load:** Saves data to both PostgreSQL (primary) and CSV (backup)
 - **REST API:** 6 FastAPI endpoints with Swagger documentation at `/docs`
+- **Dashboard:** Interactive Streamlit dashboard with charts, filters, and live pipeline trigger
 - **Scheduler:** Automated pipeline runs every N hours using the `schedule` library
 - **Testing:** 25 pytest tests across 3 test files
 
 ---
 
 ## Project Structure
-
-```
 Data-Pipeline-Project/
 ├── src/
 │   ├── main.py          # Entry point — runs pipeline once or starts scheduler
@@ -31,6 +30,7 @@ Data-Pipeline-Project/
 │   ├── scheduler.py     # Automated scheduling (every N hours)
 │   ├── api.py           # FastAPI REST API (6 endpoints)
 │   ├── schemas.py       # Pydantic response models
+│   ├── dashboard.py     # Streamlit interactive dashboard
 │   └── tests/
 │       ├── conftest.py       # pytest configuration
 │       ├── test_api.py       # 12 tests for API endpoints
@@ -56,6 +56,7 @@ Data-Pipeline-Project/
 | schedule | Task scheduling (Windows-compatible) |
 | FastAPI + uvicorn | REST API server |
 | Pydantic | Data validation and serialization |
+| Streamlit + Plotly | Interactive dashboard and charts |
 | pytest + httpx | Testing |
 | python-dotenv | Environment variable management |
 
@@ -120,6 +121,13 @@ uvicorn api:app --reload
 ```
 Then visit `http://127.0.0.1:8000/docs` for the Swagger UI.
 
+### Start the dashboard
+```bash
+cd src
+streamlit run dashboard.py
+```
+Then visit `http://localhost:8501` for the interactive dashboard.
+
 ---
 
 ## API Endpoints
@@ -136,7 +144,6 @@ Then visit `http://127.0.0.1:8000/docs` for the Swagger UI.
 ---
 
 ## Running Tests
-
 ```bash
 cd src
 pytest tests/ -v
@@ -156,7 +163,22 @@ pytest tests/ -v
 
 ---
 
+## Project Status
+
+- [x] API data fetching
+- [x] Data processing with pandas
+- [x] CSV export
+- [x] PostgreSQL storage
+- [x] Scheduled automation
+- [x] FastAPI REST endpoints
+- [x] Testing (pytest — 25 tests)
+- [x] Streamlit dashboard
+- [ ] Docker containerization
+- [ ] Cloud deployment
+
+---
+
 ## Author
 
-**Ibrahim Abu Nasser** — CS & Math student  
+**Ibrahim Abu Nasser** — Software Engineer and CS & Math student
 GitHub: [@ibrahem22-dev](https://github.com/ibrahem22-dev)
