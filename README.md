@@ -164,7 +164,6 @@ pytest tests/ -v
 ---
 
 ## Project Status
-
 - [x] API data fetching
 - [x] Data processing with pandas
 - [x] CSV export
@@ -173,9 +172,8 @@ pytest tests/ -v
 - [x] FastAPI REST endpoints
 - [x] Testing (pytest — 25 tests)
 - [x] Streamlit dashboard
-- [ ] Docker containerization
-- [ ] Cloud deployment
-
+- [x] Docker containerization
+- [ ] Cloud deployment 
 ---
 
 ## Author
