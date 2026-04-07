@@ -13,9 +13,7 @@ services:
     name: weather-api
     runtime: docker
     dockerfilePath: ./Dockerfile
-    # Render injects $PORT at runtime; this overrides the Dockerfile CMD.
-    # The shell expands $PORT before passing to uvicorn.
-    startCommand: uvicorn api:app --host 0.0.0.0 --port $PORT
+    dockerCommand: uvicorn api:app --host 0.0.0.0 --port $PORT
     plan: free
     healthCheckPath: /           # Render hits GET / to confirm the service is up
     autoDeploy: false            # Deploys are triggered by GitHub Actions, not Render auto-deploy
@@ -33,7 +31,7 @@ services:
     name: weather-dashboard
     runtime: docker
     dockerfilePath: ./Dockerfile
-    startCommand: streamlit run dashboard.py --server.port $PORT --server.address 0.0.0.0 --server.headless true
+    dockerCommand: streamlit run dashboard.py --server.port $PORT --server.address 0.0.0.0 --server.headless true
     plan: free
     autoDeploy: false
     envVars:
@@ -49,5 +47,6 @@ databases:
   - name: weather-db
     plan: free                   # Free tier: 256 MB RAM, 1 GB storage, expires after 90 days
     databaseName: weather_pipeline
-    user: postgres
+    user: weather_user
     # No ipAllowList entry = accessible only from internal Render services (secure default)
+  
