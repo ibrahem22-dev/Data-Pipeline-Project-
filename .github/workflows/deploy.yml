@@ -1,0 +1,71 @@
+name: Test and Deploy
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  # ── Job 1: Run the full test suite ─────────────────────────────────────────
+  test:
+    name: Run pytest (25 tests)
+    runs-on: ubuntu-latest
+
+    services:
+      # Spin up a real PostgreSQL so test_api.py can connect to the database.
+      # Uses postgres:18 to match docker-compose.yml exactly.
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: weather_pipeline
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+          --health-start-period 30s
+
+    env:
+      # Injected into every step so config.py picks it up via os.environ.get()
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/weather_pipeline
+      # test_trigger_fetch accepts 200 OR 500, so tests pass even with a dummy key.
+      # Set the real key as a GitHub secret to get full 200 coverage in CI.
+      OPENWEATHER_API_KEY: ${{ secrets.OPENWEATHER_API_KEY }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run tests
+        working-directory: src
+        run: pytest tests/ -v
+
+  # ── Job 2: Deploy to Render (only on push to main, after tests pass) ───────
+  deploy:
+    name: Deploy to Render
+    needs: test                                          # only runs if test passes
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Trigger API deploy
+        # RENDER_API_DEPLOY_HOOK  →  copy from Render dashboard → weather-api → Settings → Deploy Hook
+        run: curl --fail -sS -X POST "${{ secrets.RENDER_API_DEPLOY_HOOK }}"
+
+      - name: Trigger Dashboard deploy
+        # RENDER_DASHBOARD_DEPLOY_HOOK  →  copy from Render dashboard → weather-dashboard → Settings → Deploy Hook
+        run: curl --fail -sS -X POST "${{ secrets.RENDER_DASHBOARD_DEPLOY_HOOK }}"
