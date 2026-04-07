@@ -1,0 +1,28 @@
+# Secrets — never bake into the image; injected at runtime via env_file
+.env
+
+# Version control
+.git
+.gitignore
+
+# Python byte-code and caches
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache
+.coverage
+htmlcov/
+
+# Virtual environment
+venv/
+.venv/
+
+# Runtime-generated files (written by the pipeline at runtime, not needed at build time)
+src/weather_data.csv
+
+# IDE / OS
+.vscode/
+.idea/
+*.DS_Store
+Thumbs.db

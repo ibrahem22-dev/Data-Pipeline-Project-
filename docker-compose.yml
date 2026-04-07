@@ -1,0 +1,59 @@
+services:
+
+  # ── PostgreSQL database ───────────────────────────────────────────────────
+  db:
+    image: postgres:18
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: weather_pipeline
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d weather_pipeline"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── FastAPI REST API ──────────────────────────────────────────────────────
+  api:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env                          # loads OPENWEATHER_API_KEY, APP_ENV, etc.
+    environment:
+      # Override DATABASE_URL so the app talks to the 'db' service, not localhost
+      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:-postgres}@db:5432/weather_pipeline
+    depends_on:
+      db:
+        condition: service_healthy
+    command: ["uvicorn", "api:app", "--host", "0.0.0.0", "--port", "8000"]
+
+  # ── Streamlit dashboard ───────────────────────────────────────────────────
+  dashboard:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "8501:8501"
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:-postgres}@db:5432/weather_pipeline
+    depends_on:
+      db:
+        condition: service_healthy
+    command:
+      - streamlit
+      - run
+      - dashboard.py
+      - --server.port=8501
+      - --server.address=0.0.0.0
+      - --server.headless=true     # required in Docker (no browser to open)
+
+volumes:
+  postgres_data:
