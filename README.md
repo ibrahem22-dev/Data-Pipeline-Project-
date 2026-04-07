@@ -48,7 +48,7 @@ Data-Pipeline-Project/
 
 | Tool | Purpose |
 |---|---|
-| Python 3.11+ | Core language |
+| Python 3.13 | Core language |
 | requests | HTTP client for OpenWeatherMap API |
 | pandas | Data processing and transformation |
 | PostgreSQL 18 | Persistent data storage |
