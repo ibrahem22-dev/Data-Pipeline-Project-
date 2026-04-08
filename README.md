@@ -52,6 +52,13 @@ Data-Pipeline-Project/
 
 ---
 
+## Architecture
+
+![Architecture Diagram](architecture.png)
+
+
+---
+
 ## Tech Stack
 
 | Tool | Purpose |
