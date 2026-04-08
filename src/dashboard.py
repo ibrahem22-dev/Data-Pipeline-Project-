@@ -1,7 +1,8 @@
 import sys
 import os
 
-# Add src directory to path so local imports work when running from project root
+# Make sure local imports (database, config, etc.) resolve correctly
+# when this file is run from the project root rather than from inside src/
 sys.path.insert(0, os.path.dirname(__file__))
 
 import streamlit as st
@@ -23,6 +24,9 @@ st.set_page_config(
 )
 
 # ── Custom CSS ────────────────────────────────────────────────────────────────
+# I wrote this CSS block to give the dashboard a dark theme that matches
+# the kind of monitoring dashboards I've seen in production environments.
+# Streamlit's default white theme felt too plain for a data pipeline project.
 st.markdown("""
 <style>
     /* Metric card styling */
@@ -69,7 +73,11 @@ st.markdown("""
 # ── Data loading ──────────────────────────────────────────────────────────────
 @st.cache_data(ttl=30)
 def load_data() -> pd.DataFrame:
-    """Load all weather readings from PostgreSQL."""
+    """
+    Pulls all weather readings from PostgreSQL and returns them as a DataFrame.
+    ttl=30 means Streamlit re-fetches every 30 seconds — short enough to feel
+    live, long enough not to hammer the database on every user interaction.
+    """
     try:
         query = text("""
             SELECT id, city, temperature, feels_like, humidity,
@@ -80,7 +88,7 @@ def load_data() -> pd.DataFrame:
         with engine.connect() as conn:
             df = pd.read_sql(query, conn)
         df["recorded_at"] = pd.to_datetime(df["recorded_at"])
-        # Strip country suffix from city names for cleaner display
+        # Strip the ",IL" country suffix so chart labels show "Tel Aviv" not "Tel Aviv,IL"
         df["city_label"] = df["city"].str.split(",").str[0]
         return df
     except Exception as e:
@@ -89,7 +97,11 @@ def load_data() -> pd.DataFrame:
 
 
 def run_pipeline():
-    """Trigger a single pipeline run (extract → transform → load)."""
+    """
+    Triggers a single ETL run from inside the dashboard.
+    I import the pipeline modules here (lazy import) rather than at the top of the file
+    to avoid circular import issues and keep the dashboard startup fast.
+    """
     try:
         from extract import fetch_all_cities
         from transform import process_data
@@ -118,21 +130,21 @@ with st.sidebar:
     st.caption("Real-time weather data for Israeli cities")
     st.divider()
 
-    # Trigger pipeline
+    # Manual pipeline trigger — useful when I want fresh data without waiting for the scheduler
     st.markdown('<p class="section-header">Pipeline</p>', unsafe_allow_html=True)
     if st.button("▶ Fetch New Data", use_container_width=True, type="primary"):
         with st.spinner("Running pipeline…"):
             ok, msg = run_pipeline()
         if ok:
             st.success(msg)
-            st.cache_data.clear()
+            st.cache_data.clear()  # Force a re-fetch so the new data shows up immediately
             st.rerun()
         else:
             st.error(msg)
 
     st.divider()
 
-    # Load data for filter options
+    # Load data here so the filter widgets below have something to populate from
     raw_df = load_data()
 
     # City filter
@@ -171,15 +183,16 @@ with st.sidebar:
 
 
 # ── Apply filters ─────────────────────────────────────────────────────────────
+# Work on a copy so the raw_df stays intact for things like the delta calculations below
 df = raw_df.copy()
 
 if not df.empty:
-    # Date filter
+    # Filter by date range
     df = df[
         (df["recorded_at"].dt.date >= date_from) &
         (df["recorded_at"].dt.date <= date_to)
     ]
-    # City filter
+    # Filter by city if a specific one was selected
     if city_choice != all_option:
         df = df[df["city_label"] == city_choice]
 
@@ -204,7 +217,8 @@ cities_tracked = df["city_label"].nunique()
 avg_temp = df["temperature"].mean()
 avg_humidity = df["humidity"].mean()
 
-# Deltas vs. overall dataset (for context)
+# I compute the overall averages from raw_df (unfiltered) so the delta
+# on the metric cards shows how the selected city/period compares to the full dataset
 overall_avg_temp = raw_df["temperature"].mean()
 overall_avg_humidity = raw_df["humidity"].mean()
 
@@ -309,7 +323,8 @@ with col_scatter:
         color_discrete_sequence=px.colors.qualitative.Bold,
         trendline=None,
     )
-    # Reference line: y = x
+    # The y=x reference line shows where "feels like" equals "actual temp".
+    # Points above the line = feels warmer than it is; below = feels colder.
     if not scatter_df.empty:
         axis_min = min(scatter_df["temperature"].min(), scatter_df["feels_like"].min())
         axis_max = max(scatter_df["temperature"].max(), scatter_df["feels_like"].max())
@@ -340,6 +355,8 @@ st.divider()
 # ── Latest readings table ─────────────────────────────────────────────────────
 st.markdown('<p class="section-header">Latest Reading per City</p>', unsafe_allow_html=True)
 
+# Sort ascending then take the last row per city — equivalent to MAX(recorded_at) per city
+# but easier to chain with the column selection and rename in one expression
 latest = (
     df.sort_values("recorded_at")
     .groupby("city_label", as_index=False)

@@ -1,18 +1,22 @@
 from sqlalchemy import create_engine, text
 from config import DATABASE_URL
  
-# Create the SQLAlchemy engine using the configured DATABASE_URL
-# echo=False prevents SQLAlchemy from printing every SQL query to the console
+# echo=False keeps SQLAlchemy quiet — I don't need it printing every SELECT
+# to the console on every API request. Turning it on temporarily is useful
+# when debugging a query, but it's too noisy for normal operation.
 engine = create_engine(DATABASE_URL, echo=False)
  
  
 def init_database():
     """
-    Initializes the database by creating the 'weather_readings' table if it doesn't exist.
-    This is called on startup to ensure the database is ready to receive data.
+    Creates the weather_readings table if it doesn't already exist.
+    I call this on startup so the app never crashes on a fresh database —
+    it just creates what it needs and moves on.
     """
-    # Define the schema for the weather_readings table
-    # Using raw SQL here instead of ORM models for simplicity and direct control
+    # I wrote this as raw SQL rather than an ORM model because the schema is simple
+    # and I wanted full control over the column types and constraints.
+    # SERIAL handles the auto-increment primary key, and DEFAULT NOW() means
+    # I don't have to pass recorded_at explicitly on every insert.
     create_table_query = text("""
         CREATE TABLE IF NOT EXISTS weather_readings (
             id SERIAL PRIMARY KEY,
@@ -29,28 +33,26 @@ def init_database():
     """)
  
     try:
-        # Connect to the database and execute the table creation query
         with engine.connect() as conn:
             conn.execute(create_table_query)
-            conn.commit() # Commit the transaction to save changes
+            conn.commit()
         print("  [DB] Table 'weather_readings' is ready")
         return True
     except Exception as e:
-        # Catch and log any database connection or execution errors
         print(f"  [DB ERROR] Failed to initialize database: {e}")
         return False
  
  
 def get_row_count():
     """
-    Helper function to get the total number of rows in the 'weather_readings' table.
-    Used to track how many records were inserted during a pipeline run.
+    Returns the current total number of rows in weather_readings.
+    I use this in the load step to calculate exactly how many rows were inserted
+    in a given pipeline run (rows_after - rows_before).
     """
     try:
-        # Execute a simple COUNT query
         with engine.connect() as conn:
             result = conn.execute(text("SELECT COUNT(*) FROM weather_readings"))
-            return result.scalar() # Return the single scalar value (the count)
+            return result.scalar()
     except Exception:
-        # If the table doesn't exist yet or there's an error, return 0
+        # If the table doesn't exist yet, COUNT will fail — returning 0 is the safe fallback
         return 0

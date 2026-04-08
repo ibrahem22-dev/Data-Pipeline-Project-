@@ -1,11 +1,12 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from datetime import datetime
- 
- 
+
+
 class WeatherReading(BaseModel):
     """
-    Pydantic model representing a single weather reading.
-    This defines the structure of the data returned by the API for individual readings.
+    Represents a single row from the weather_readings table.
+    Most fields are optional because the OpenWeatherMap API occasionally
+    omits them for certain cities or weather conditions.
     """
     id: int
     city: str
@@ -17,17 +18,18 @@ class WeatherReading(BaseModel):
     description: str | None = None
     clouds: float | None = None
     recorded_at: datetime | None = None
- 
-    class Config:
-        # Enable ORM mode to allow Pydantic to read data from SQLAlchemy models
-        # This is crucial for converting database rows into API responses
-        from_attributes = True
- 
- 
+
+    # from_attributes=True lets Pydantic read data from SQLAlchemy row objects
+    # directly, without me having to manually convert them to dicts first.
+    # This replaces the old `class Config` syntax from Pydantic v1.
+    model_config = ConfigDict(from_attributes=True)
+
+
 class CityStats(BaseModel):
     """
-    Pydantic model representing aggregated statistics for a specific city.
-    Used by the /weather/stats endpoint to return calculated metrics.
+    Aggregated statistics for a single city — returned by the /weather/stats endpoint.
+    These are all computed in SQL (AVG, MIN, MAX, COUNT) rather than in Python
+    so the database does the heavy lifting.
     """
     city: str
     avg_temperature: float
@@ -35,24 +37,26 @@ class CityStats(BaseModel):
     max_temperature: float
     avg_humidity: float
     total_readings: int
- 
- 
+
+
 class LatestReading(BaseModel):
     """
-    Pydantic model representing the most recent weather reading for a city.
-    Used by the /weather/latest endpoint to return the current weather state.
+    The most recent weather snapshot for a city — returned by /weather/latest.
+    I kept this model lighter than WeatherReading since the latest endpoint
+    only needs the fields that are relevant for a "current conditions" view.
     """
     city: str
     temperature: float
     humidity: float
     description: str | None = None
     recorded_at: datetime | None = None
- 
- 
+
+
 class PipelineResponse(BaseModel):
     """
-    Pydantic model representing the response from a manual pipeline trigger.
-    Used by the /weather/fetch endpoint to report the status of the ETL process.
+    Response model for the /weather/fetch endpoint.
+    Gives the caller a clear confirmation of what happened:
+    whether it succeeded, a human-readable message, and how many rows were inserted.
     """
     status: str
     message: str

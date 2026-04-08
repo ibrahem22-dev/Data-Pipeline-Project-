@@ -6,64 +6,63 @@ from database import engine, get_row_count
  
 def save_to_db(df: pd.DataFrame) -> bool:
     """
-    Saves the processed pandas DataFrame to the PostgreSQL database.
-    Uses SQLAlchemy's to_sql method for efficient bulk insertion.
+    Saves the processed DataFrame to the PostgreSQL database.
+    I use pandas' to_sql with if_exists="append" — I never want to overwrite
+    historical readings, only add new ones on top.
     """
-    # Don't try to save an empty DataFrame
     if df.empty:
         print("  [WARNING] No data to save — DataFrame is empty")
         return False
  
     try:
-        # Select only the columns that match our database schema
-        # This prevents errors if we added extra columns during transformation (like temp_diff)
+        # I only pass the columns that actually exist in the DB schema.
+        # The transform step adds temp_diff and temp_category which are useful
+        # for analysis but I didn't include them in the table — keeping the schema lean.
         db_columns = [
             "city", "temperature", "feels_like", "humidity",
             "pressure", "wind_speed", "description", "clouds", "recorded_at"
         ]
         df_to_save = df[db_columns].copy()
  
-        # Track row count before insertion to verify success
+        # Snapshot the row count before and after so I can confirm how many rows actually landed
         rows_before = get_row_count()
         
-        # Append the data to the 'weather_readings' table
-        # index=False prevents pandas from saving the row index as a column
+        # index=False because I don't want pandas' 0-based row index saved as a column —
+        # the DB has its own SERIAL primary key for that
         df_to_save.to_sql("weather_readings", engine, if_exists="append", index=False)
         
-        # Track row count after insertion
         rows_after = get_row_count()
  
-        # Calculate and print the number of inserted rows
         inserted = rows_after - rows_before
         print(f"  [DB] Inserted {inserted} rows → weather_readings (total: {rows_after})")
         return True
  
     except Exception as e:
-        # Catch and log any database insertion errors
         print(f"  [DB ERROR] Failed to save: {e}")
         return False
  
  
 def save_to_csv(df: pd.DataFrame, filename: str = OUTPUT_FILE) -> bool:
     """
-    Saves the processed pandas DataFrame to a CSV file as a backup.
-    This dual-storage approach (DB + CSV) ensures we don't lose data if the DB goes down.
+    Saves the processed DataFrame to a CSV file as a local backup.
+    I keep both DB and CSV outputs running in parallel — if the database
+    goes down or I need to inspect the raw data quickly, the CSV is there.
     """
-    # Don't try to save an empty DataFrame
     if df.empty:
         print("  [WARNING] No data to save — DataFrame is empty")
         return False
  
     try:
-        # Check if the file exists to determine whether to write the header row
+        # Check whether the file already exists so I know whether to write the header.
+        # If I always write the header, I end up with duplicate header rows mid-file.
         file_exists = os.path.exists(filename)
         
-        # Append the data to the CSV file
-        # mode="a" means append, so we don't overwrite existing data
+        # mode="a" appends to the file instead of overwriting it —
+        # I want the full history in one CSV, not just the latest batch
         df.to_csv(
             filename,
             mode="a",
-            header=not file_exists, # Only write header if the file is new
+            header=not file_exists,
             index=False,
             encoding="utf-8",
         )
@@ -71,11 +70,10 @@ def save_to_csv(df: pd.DataFrame, filename: str = OUTPUT_FILE) -> bool:
         return True
  
     except PermissionError:
-        # Handle the common case where the CSV file is open in Excel or another program
+        # This happens when the CSV is open in Excel — common enough that it deserves its own message
         print(f"  [ERROR] Cannot write to {filename} — file is open in another program")
         return False
  
     except Exception as e:
-        # Catch and log any other file writing errors
         print(f"  [ERROR] Failed to save: {e}")
         return False

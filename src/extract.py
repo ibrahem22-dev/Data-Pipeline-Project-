@@ -5,25 +5,26 @@ from config import API_KEY, BASE_URL, CITIES
 
 def fetch_weather(city: str) -> dict | None:
     """
-    Fetches current weather data for a specific city from the OpenWeatherMap API.
-    Handles various connection and HTTP errors gracefully.
+    Fetches current weather data for a single city from the OpenWeatherMap API.
+    Returns None if anything goes wrong — I handle each failure type separately
+    so the logs actually tell me what broke instead of just "something failed".
     """
-    # Setup API parameters
     params = {
         "q": city,
         "appid": API_KEY,
-        "units": "metric", # Using metric for Celsius temperatures
+        "units": "metric",  # Celsius — I'm in Israel, metric is the only sane choice
         "lang": "en",
     }
     
     try:
-        # Make the API request with a 10-second timeout
+        # 10-second timeout — if the API hasn't responded by then, it's not going to
         response = requests.get(BASE_URL, params=params, timeout=10)
-        response.raise_for_status() # Raise an exception for bad status codes (4xx or 5xx)
+        response.raise_for_status()
         data = response.json()
         
-        # Extract only the relevant fields we need for our database schema
-        # Clean up the city name (e.g., "Tel Aviv,IL" -> "Tel Aviv")
+        # I only pull the fields I actually need for the DB schema.
+        # The API returns a lot of noise (sunrise, sunset, visibility...) I don't care about.
+        # Also stripping the country code from the city name — "Tel Aviv,IL" → "Tel Aviv"
         weather_record = {
             "city": city.split(",")[0],
             "temperature": data["main"]["temp"],
@@ -38,7 +39,8 @@ def fetch_weather(city: str) -> dict | None:
 
         return weather_record
 
-    # Specific error handling to make debugging easier
+    # I split these into separate except blocks on purpose — a timeout is a very
+    # different problem from a 401 Unauthorized, and I want the logs to reflect that
     except requests.exceptions.Timeout:
         print(f"  [TIMEOUT] {city}: the server did not respond within 10 seconds")
         return None
@@ -56,20 +58,22 @@ def fetch_weather(city: str) -> dict | None:
         return None
 
     except KeyError as e:
+        # This happens if OpenWeatherMap changes their response structure.
+        # Unlikely, but worth catching explicitly rather than getting a cryptic crash.
         print(f"  [DATA ERROR] {city}: missing field {e} in API response")
         return None
 
 
 def fetch_all_cities(cities: list[str]) -> list[dict]:
     """
-    Iterates through the configured list of cities and fetches data for each.
-    Includes a small delay between requests to avoid hitting API rate limits.
+    Loops through all configured cities and fetches weather data for each.
+    I added a 1-second sleep between requests — free-tier API keys have rate limits
+    and I'd rather be polite than get blocked.
     """
     results = []
     success_count = 0
     fail_count = 0
 
-    # Print a nice header for the extraction process
     print(f"\n{'='*60}")
     print(f"  Weather Pipeline — Fetching {len(cities)} cities")
     print(f"  Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
@@ -87,11 +91,10 @@ def fetch_all_cities(cities: list[str]) -> list[dict]:
         else:
             fail_count += 1
 
-        # Sleep for 1 second between requests to be polite to the API
+        # Skip the sleep after the last city — no point waiting if there's nothing after it
         if i < len(cities) - 1:
             time.sleep(1)
 
-    # Print a summary footer
     print(f"\n{'='*60}")
     print(f"  Done: {success_count} succeeded, {fail_count} failed")
     print(f"{'='*60}\n")
