@@ -56,6 +56,7 @@ Data-Pipeline-Project/
 
 ![Architecture Diagram](architecture.png)
 
+*Full ETL pipeline: OpenWeatherMap → Extract → Transform → Load → PostgreSQL → FastAPI / Streamlit → Render*
 
 ---
 
